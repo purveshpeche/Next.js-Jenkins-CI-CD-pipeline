@@ -1,0 +1,46 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "purveshpeche/nextjs-app"
+        CONTAINER_NAME = "nextjs-container"
+    }
+
+    stages {
+        stage('Clone Repo') {
+            steps {
+                git 'https://github.com/purveshpeche/nextjs-project.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build("${IMAGE_NAME}")
+                }
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    script {
+                        docker.withRegistry('', 'dockerhub-creds') {
+                            docker.image("${IMAGE_NAME}").push('latest')
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Container') {
+            steps {
+                sh '''
+                docker stop ${CONTAINER_NAME} || true
+                docker rm ${CONTAINER_NAME} || true
+                docker run -d -p 3000:3000 --name ${CONTAINER_NAME} ${IMAGE_NAME}
+                '''
+            }
+        }
+    }
+}
